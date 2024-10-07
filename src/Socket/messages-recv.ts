@@ -16,6 +16,7 @@ import {
 	derivePairingCodeKey,
 	encodeBigEndian,
 	encodeSignedDeviceIdentity,
+	generateMessageIDV2,
 	getCallStatusFromNode,
 	getHistoryMsg,
 	getNextPreKeys,
@@ -122,12 +123,21 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		await sendNode(stanza)
 	}
 
-	const offerCall = async(toJid: string) => {
+	const offerCall = async(toJid: string, isVideo = false) => {
 		const callId = randomBytes(16).toString('hex').toUpperCase().substring(0, 64)
 
 		const offerContent: BinaryNode[] = []
 		offerContent.push({ tag: 'audio', attrs: { enc: 'opus', rate: '16000' }, content: undefined })
 		offerContent.push({ tag: 'audio', attrs: { enc: 'opus', rate: '8000' }, content: undefined })
+
+		if(isVideo) {
+			offerContent.push({
+				tag: 'video',
+				attrs: { enc: 'vp8', dec: 'vp8', orientation: '0', 'screen_width': '1920', 'screen_height': '1080', 'device_orientation': '0' },
+				content: undefined
+			})
+		}
+
 		offerContent.push({ tag: 'net', attrs: { medium: '3' }, content: undefined })
 		offerContent.push({ tag: 'capability', attrs: { ver: '1' }, content: new Uint8Array([1, 4, 255, 131, 207, 4]) })
 		offerContent.push({ tag: 'encopt', attrs: { keygen: '2' }, content: undefined })
@@ -157,6 +167,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		const stanza: BinaryNode = ({
 			tag: 'call',
 			attrs: {
+				id: generateMessageIDV2(),
 				to: toJid,
 			},
 			content: [{
@@ -175,33 +186,32 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		}
 	}
 
-	const cancelCall = async(callId: string, callTo: string) => {
+	const terminateCall = async(callId: string, toJid: string) => {
 		const stanza: BinaryNode = ({
 			tag: 'call',
 			attrs: {
-				from: authState.creds.me!.id,
-				to: callTo,
+				id: generateMessageIDV2(),
+				to: toJid,
 			},
 			content: [{
-				tag: 'cancel',
-				attrs: {
+			    tag: 'terminate',
+			    attrs: {
 					'call-id': callId,
-					'call-creator': authState.creds.me!.id,
-					count: '0',
-				},
-				content: undefined,
+					'call-creator': toJid,
+			    },
+			    content: undefined,
 			}],
 		})
-		const aa = await query(stanza)
-		console.log(aa)
+		await query(stanza)
 	}
 
 	const rejectCall = async(callId: string, callFrom: string) => {
 		const stanza: BinaryNode = ({
 			tag: 'call',
 			attrs: {
-				from: authState.creds.me!.id,
+				id: generateMessageIDV2(),
 				to: callFrom,
+				from: authState.creds.me!.id,
 			},
 			content: [{
 			    tag: 'reject',
@@ -419,7 +429,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 
 			break
 		case 'membership_approval_mode':
-			const approvalMode: any = getBinaryNodeChild(child, 'group_join')
+			const approvalMode = getBinaryNodeChild(child, 'group_join')
 			if(approvalMode) {
 				msg.messageStubType = WAMessageStubType.GROUP_MEMBERSHIP_JOIN_APPROVAL_MODE
 				msg.messageStubParameters = [ approvalMode.attrs.state ]
@@ -1118,7 +1128,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		sendRetryRequest,
 		offerCall,
 		rejectCall,
-		cancelCall,
+		terminateCall,
 		fetchMessageHistory,
 		requestPlaceholderResend,
 	}
