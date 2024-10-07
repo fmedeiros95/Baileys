@@ -150,9 +150,9 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 
 		const { nodes: destinations, shouldIncludeDeviceIdentity } = await createParticipantNodes(devices, {
 			call: {
-				callKey: encKey
+				callKey: new Uint8Array(encKey)
 			}
-		})
+		}, { count: '0' })
 
 		offerContent.push({ tag: 'destination', attrs: {}, content: destinations })
 
