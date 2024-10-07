@@ -185,10 +185,29 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		})
 		await query(stanza)
 		return {
-			callId,
-			toJid,
+			id: callId,
+			to: toJid,
 			isVideo,
 		}
+	}
+
+	const terminateCall = async(callId: string, callTo: string) => {
+		const stanza: BinaryNode = ({
+			tag: 'call',
+			attrs: {
+				from: authState.creds.me!.id,
+				to: callTo,
+			},
+			content: [{
+				tag: 'terminate',
+				attrs: {
+					'call-id': callId,
+					'call-creator': authState.creds.me!.id,
+				},
+				content: undefined,
+			}],
+		})
+		await query(stanza)
 	}
 
 	const rejectCall = async(callId: string, callFrom: string) => {
@@ -923,7 +942,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		return sendPeerDataOperationMessage(pdoMessage)
 	}
 
-	const requestPlaceholderResend = async(messageKey: WAMessageKey): Promise<'RESOLVED'| string | undefined> => {
+	const requestPlaceholderResend = async(messageKey: WAMessageKey): Promise<string | undefined> => {
 		if(!authState.creds.me?.id) {
 			throw new Boom('Not authenticated')
 		}
@@ -1113,6 +1132,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		sendRetryRequest,
 		offerCall,
 		rejectCall,
+		terminateCall,
 		fetchMessageHistory,
 		requestPlaceholderResend,
 	}
